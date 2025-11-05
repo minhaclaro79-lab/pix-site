@@ -1,55 +1,60 @@
-import fetch from "node-fetch";
-
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Método não permitido" });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Método não permitido' });
   }
 
   try {
-    console.log("📤 Iniciando criação do pagamento PIX...");
+    // 🔒 Sempre mantenha seu token em variável de ambiente
+    const token = process.env.PEPPER_TOKEN;
+    if (!token) {
+      throw new Error("Token da Pepper não configurado");
+    }
 
-    const { amount } = req.body;
-
+    // ⚙️ Corpo base para gerar o Pix (substitua pelos dados reais do seu checkout)
     const body = {
-      amount: amount || 990,
-      payment_method: "pix",
-      offer_id: 10601,
-      product_id: 7562,
-      name: "Cliente Teste",
-      document: "23745874870",
-      email: "teste@cliente.com",
-      description: "Compra - CONTEÚDO VIP ANA CAROLINA",
+      offer_hash: "brzgj",
+      customer: {
+        name: "Cliente Teste",
+        email: "cliente"+Date.now()+"@teste.com",
+        document: "00000000000", // apenas exemplo
+        phone_number: "11999999999"
+      },
+      payment_method: 3, // 3 = PIX
+      installments: 1,
+      tracking: {},
+      cart: [
+        {
+          product_hash: "ehqoxdvpi3",
+          quantity: 1
+        }
+      ]
     };
 
-    const response = await fetch(process.env.PEPPER_API_URL, {
+    // 🔗 Chamada à API da Pepper
+    const response = await fetch("https://api.pepper.com.br/api/transactions", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.PEPPER_BEARER_TOKEN}`,
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(body)
     });
 
     const data = await response.json();
-    console.log("📥 Resposta PepperPay:", data);
 
     if (!response.ok) {
-      return res.status(response.status).json({
-        error: "Erro ao gerar pagamento Pix",
-        details: data,
-      });
+      console.error("Erro da API Pepper:", data);
+      return res.status(response.status).json({ error: data });
     }
 
-    const pixCode =
-      data.pix_payload ||
-      data.copy_paste ||
-      data.qr_code_payload ||
-      data.data?.payload ||
-      "Pix não retornado";
+    // Retorna o QR Code Pix ou o código copia e cola
+    return res.status(200).json({
+      pix_code: data?.transaction?.payment_data?.pix_qr_code || null,
+      full_response: data
+    });
 
-    res.status(200).json({ pix: pixCode });
   } catch (error) {
-    console.error("❌ Erro interno:", error);
-    res.status(500).json({ error: "Erro interno", details: error.message });
+    console.error("Erro ao gerar Pix:", error);
+    return res.status(500).json({ error: "Erro interno ao gerar Pix" });
   }
 }
