@@ -1,0 +1,11 @@
+{
+  "name": "pix-site",
+  "version": "1.0.0",
+  "main": "index.html",
+  "scripts": {
+    "start": "vercel dev"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}
